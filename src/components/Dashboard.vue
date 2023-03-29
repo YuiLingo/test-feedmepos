@@ -34,6 +34,7 @@
         <div class="col-2 text-center">
             <div class="btn-group-vertical d-grid gap-2 mx-2" role="group" aria-label="Vertical radio toggle button group">
                 <button type="button" class="btn btn-primary" v-on:click='addBot()'>+ Bot</button>
+                <button type="button" class="btn btn-primary" v-on:click='addBot("V")'>+ VIP Bot</button>
                 <button type="button" class="btn btn-secondary" v-on:click='destroyBot()'>- Bot</button>
             </div>
         </div>
@@ -69,7 +70,7 @@ export default {
             let order = {
                 id: type + Date.now(),
                 type: type,
-                status: 'pending'
+                status: 'pending',
             };
 
             if (type == 'V') {
@@ -112,21 +113,24 @@ export default {
         findOrderById(id) {
             return this.orders.findIndex(order => order.id == id);
         },
-        addBot() {
+        addBot(type = 'N') {
             this.bots.push({
-                id: Date.now(),
+                id: Date.now() + '_' + type,
                 orderId: 0,
                 timer: null,
-                countDown: 0
+                countDown: 0,
+                countDowmTimer: null,
+                type: type,
             });
             this.checkBotAndAssignOrder();
         },
         destroyBot() {
             if (this.bots.length > 0 && this.bots[this.bots.length - 1].orderId) {
                 clearTimeout(this.bots[this.bots.length - 1].timer);
+                clearTimeout(this.bots[this.bots.length - 1].countDowmTimer);
                 this.updateOrderStatusById(this.bots[this.bots.length - 1].orderId, 'pending')
-                this.bots.pop();
             }
+            this.bots.pop();
         },
         resetBot(id) {
             let index = this.findBotById(id);
@@ -136,6 +140,7 @@ export default {
                 this.bots[index].orderId = 0;
                 this.bots[index].timer = null;
                 this.bots[index].countDown = 0;
+                this.bots[index].countDowmTimer = null;
             }
             this.checkBotAndAssignOrder();
             return;
@@ -144,34 +149,32 @@ export default {
             return this.bots.findIndex(bot => bot.id == id);
         },
         async checkBotAndAssignOrder() {
-            if (this.bots.length > 0) {
 
-                for (let i = 0; i < this.bots.length; i++) {
+            let pendingOrder = this.orders.find(order => order.status == 'pending');
+            if (pendingOrder) {
+                let pendingBot = this.bots.sort((botA, botB) => { return botA.type == 'V'? -1: 1;}).find(bot => bot.orderId == 0);
 
-                    if (this.bots[i].orderId == 0) {
+                if(pendingBot) {
 
-                        let pendingOrder = this.orders.find(order => order.status == 'pending');
-                        if (pendingOrder) {
-                            let currentInstance = this;
-                            currentInstance.updateOrderStatusById(pendingOrder.id, 'processing');
-                            currentInstance.bots[i].orderId = pendingOrder.id;
-                            currentInstance.bots[i].countDown = 10;
-                            currentInstance.countdown(currentInstance.bots[i]);
-                            currentInstance.bots[i].timer = setTimeout(() => {
-                                currentInstance.resetBot(currentInstance.bots[i].id);
-                            }, currentInstance.bots[i].countDown * 1000);
-                        }
-                    }
+                    let currentInstance = this;
+                    currentInstance.updateOrderStatusById(pendingOrder.id, 'processing');
+                    pendingBot.orderId = pendingOrder.id;
+                    pendingBot.countDown = pendingBot.type == 'V' ? 5: 10;
+                    currentInstance.countdown(pendingBot);
                 }
             }
+
         },
         countdown(bot) {
+            console.log(bot);
             let currentInstance = this;
             if (bot.countDown > 0) {
-                setTimeout(() => {
+                bot.countDowmTimer = setTimeout(() => {
                     currentInstance.countdown(bot);
                 }, 1000);
                 bot.countDown--
+            } else {
+                currentInstance.resetBot(bot.id);
             }
         }
     }
